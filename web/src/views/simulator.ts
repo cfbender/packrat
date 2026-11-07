@@ -8,8 +8,13 @@ interface Ctx {
   onPricingChange: (cb: () => void) => void;
 }
 
+/** MTGJSON codes Arena-only boosters as "arena", "play-arena", "arena-1", ... */
+function isArena(listing: BoosterListing): boolean {
+  return listing.booster_code.includes("arena");
+}
+
 function rank(listing: BoosterListing): number {
-  if (listing.booster_code.includes("arena")) return 2;
+  if (isArena(listing)) return 2;
   return listing.pack ? 0 : 1;
 }
 
@@ -34,9 +39,10 @@ export function simulatorView(ctx: Ctx): HTMLElement {
   // Physical products with a sealed listing first; Arena-only boosters last.
   const listings = [...ctx.listings].sort((a, b) => rank(a) - rank(b));
   const byKey = new Map(listings.map((l) => [`${l.set_code}/${l.booster_code}`, l]));
+  const visible = (): BoosterListing[] => (prefs.showArena ? listings : listings.filter((l) => !isArena(l)));
   const remembered = prefs.selection;
   if (remembered) selected = byKey.get(`${remembered.set_code}/${remembered.booster_code}`) ?? null;
-  if (!selected) selected = listings.find((l) => l.pack?.prices[ctx.pricing().vendor] !== undefined) ?? listings[0] ?? null;
+  if (!selected) selected = visible().find((l) => l.pack?.prices[ctx.pricing().vendor] !== undefined) ?? visible()[0] ?? null;
 
   function select(listing: BoosterListing): void {
     selected = listing;
@@ -131,6 +137,19 @@ export function simulatorView(ctx: Ctx): HTMLElement {
     },
   });
   const results = h("div", { class: "results", hidden: true });
+  const arenaToggle = h(
+    "label",
+    { class: "results-option" },
+    h("input", {
+      type: "checkbox",
+      checked: prefs.showArena,
+      onChange: (event) => {
+        prefs.showArena = (event.target as HTMLInputElement).checked;
+        renderResults();
+      },
+    }),
+    "Include Arena boosters",
+  );
 
   function matches(listing: BoosterListing, query: string): boolean {
     const haystack = `${listing.set_name} ${listing.set_code} ${listing.name} ${listing.booster_code}`.toLowerCase();
@@ -139,9 +158,11 @@ export function simulatorView(ctx: Ctx): HTMLElement {
 
   function renderResults(): void {
     const query = search.value.trim().toLowerCase();
-    const found = listings.filter((l) => matches(l, query)).slice(0, 60);
-    results.hidden = found.length === 0;
-    results.replaceChildren(
+    const found = visible().filter((l) => matches(l, query)).slice(0, 60);
+    results.hidden = false;
+    clear(results);
+    mount(results,
+      found.length === 0 ? h("p", { class: "results-empty muted" }, "No boosters match") : null,
       ...found.map((listing) => {
         const price = listing.pack?.prices[ctx.pricing().vendor];
         return h(
@@ -160,6 +181,7 @@ export function simulatorView(ctx: Ctx): HTMLElement {
           h("span", { class: "result-price" }, price !== undefined ? cents(price) : ""),
         );
       }),
+      h("div", { class: "results-footer" }, arenaToggle),
     );
   }
 

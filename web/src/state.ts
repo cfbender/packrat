@@ -4,6 +4,7 @@ const KEYS = {
   vendor: "packrat.vendor",
   floor: "packrat.floor",
   selection: "packrat.selection",
+  showArena: "packrat.showArena",
   history: "packrat.history",
 } as const;
 
@@ -54,6 +55,13 @@ export const prefs = {
   },
   set floor(value: number) {
     write(KEYS.floor, value);
+  },
+  /** Arena-only boosters have no physical product or sealed price; hidden by default. */
+  get showArena(): boolean {
+    return read<boolean>(KEYS.showArena, false);
+  },
+  set showArena(value: boolean) {
+    write(KEYS.showArena, value);
   },
   get selection(): Selection | null {
     return read<Selection | null>(KEYS.selection, null);

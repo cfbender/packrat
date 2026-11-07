@@ -339,6 +339,28 @@ main {
   cursor: pointer;
 }
 
+.results-empty {
+  margin: 0;
+  padding: 0.7rem 0.8rem;
+}
+
+.results-footer {
+  position: sticky;
+  bottom: 0;
+  padding: 0.45rem 0.8rem;
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border);
+}
+
+.results-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+
 .result:hover,
 .result:focus-visible {
   background: var(--accent-soft);
