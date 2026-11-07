@@ -671,8 +671,8 @@ main {
 
 .foil-badge {
   position: absolute;
-  top: 6px;
-  left: 6px;
+  bottom: 6px;
+  right: 6px;
   padding: 0.1rem 0.4rem;
   font-size: 0.65rem;
   font-weight: 700;
