@@ -6,7 +6,37 @@ import { rankingsView } from "./views/rankings";
 import { simulatorView } from "./views/simulator";
 import "./style.css";
 
-registerSW({ immediate: true });
+// A new build waits for the user to accept it instead of swapping files
+// under the open page; long-lived PWA windows check for one periodically.
+const UPDATE_CHECK_MS = 60 * 60 * 1000;
+const updateSW = registerSW({
+  immediate: true,
+  onNeedRefresh: () => showUpdateToast(),
+  onRegisteredSW: (_url, registration) => {
+    if (!registration) return;
+    const check = () => void registration.update().catch(() => {});
+    setInterval(check, UPDATE_CHECK_MS);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") check();
+    });
+  },
+});
+
+function dismissToast(): void {
+  document.querySelector(".toast")?.remove();
+}
+
+function showUpdateToast(): void {
+  if (document.querySelector(".toast")) return;
+  const toast = h(
+    "div",
+    { class: "toast", role: "status" },
+    h("span", null, "A new version of packrat is available."),
+    h("button", { type: "button", class: "toast-action", onClick: () => void updateSW() }, "Reload"),
+    h("button", { type: "button", class: "toast-dismiss", ariaLabel: "Dismiss", onClick: dismissToast }, "×"),
+  );
+  document.body.append(toast);
+}
 
 const app = document.getElementById("app")!;
 const pricingListeners = new Set<() => void>();
