@@ -30,7 +30,8 @@ export function simulatorView(ctx: Ctx): HTMLElement {
   const historyEl = h("div", { class: "history" });
 
   let selected: BoosterListing | null = null;
-  let lastCount = 1;
+  // What `R` repeats: a single pack or a box of whatever is currently selected.
+  let lastOpening: "pack" | "box" = "pack";
   let stats: StatsResponse | null = null;
   let statsRequest = 0;
   let packs: OpenedPack[] = [];
@@ -70,10 +71,18 @@ export function simulatorView(ctx: Ctx): HTMLElement {
     }
   }
 
-  async function open(count: number): Promise<void> {
+  function boxCount(listing: BoosterListing): number | null {
+    const count = listing.box?.count ?? 0;
+    return count >= 2 && count <= 36 ? count : null;
+  }
+
+  async function open(kind: "pack" | "box"): Promise<void> {
     if (!selected || opening) return;
+    // Repeating a box opening on a product without a box falls back to one pack.
+    const box = kind === "box" ? boxCount(selected) : null;
+    const count = box ?? 1;
     opening = true;
-    lastCount = count;
+    lastOpening = box !== null ? "box" : "pack";
     renderActions();
     try {
       const result = await api.open(selected.set_code, selected.booster_code, count, ctx.pricing().floor);
@@ -219,19 +228,19 @@ export function simulatorView(ctx: Ctx): HTMLElement {
     if (!selected) return;
     const vendor = ctx.pricing().vendor;
     const price = selected.pack?.prices[vendor];
-    const boxCount = selected.box?.count ?? 0;
+    const box = boxCount(selected);
     // `R` repeats the last opening, so the key hint sits on whichever button was used last.
-    const button = (label: string, count: number, hint?: string) =>
+    const button = (label: string, kind: "pack" | "box", hint?: string) =>
       h(
         "button",
-        { type: "button", class: "open-button", disabled: opening, onClick: () => void open(count) },
+        { type: "button", class: "open-button", disabled: opening, onClick: () => void open(kind) },
         label,
         hint ? h("small", null, hint) : null,
-        count === lastCount ? h("kbd", { class: "key-hint", title: "Press R to repeat" }, "R") : null,
+        kind === lastOpening ? h("kbd", { class: "key-hint", title: "Press R to repeat" }, "R") : null,
       );
     mount(actionsEl,
-      button("Open 1", 1),
-      boxCount >= 2 && boxCount <= 36 ? button("Open box", boxCount, `${boxCount} packs`) : null,
+      button("Open 1", "pack"),
+      box !== null ? button("Open box", "box", `${box} packs`) : null,
       h(
         "span",
         { class: "pack-price" },
@@ -547,7 +556,7 @@ export function simulatorView(ctx: Ctx): HTMLElement {
     if (target && (target.tagName === "INPUT" || target.tagName === "SELECT" || target.tagName === "TEXTAREA")) return;
     if (event.key === "r" || event.key === "R") {
       event.preventDefault();
-      void open(lastCount);
+      void open(lastOpening);
     }
     if (event.key === "/") {
       event.preventDefault();
