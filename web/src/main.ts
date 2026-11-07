@@ -71,8 +71,10 @@ const ctx = {
   onPricingChange: (cb: () => void) => {
     pricingListeners.add(cb);
   },
-  openSimulator: (set_code: string) => {
-    const listing = listings.find((l) => l.set_code === set_code);
+  openSimulator: (set_code: string, booster_code: string | null) => {
+    const listing =
+      listings.find((l) => l.set_code === set_code && l.booster_code === booster_code) ??
+      listings.find((l) => l.set_code === set_code);
     if (listing) prefs.selection = { set_code: listing.set_code, booster_code: listing.booster_code };
     location.hash = "#/";
   },

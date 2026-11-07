@@ -123,6 +123,9 @@ export interface EvRanking {
   category: string | null;
   subtype: string | null;
   release_date: string | null;
+  /** The booster this product opens into. */
+  booster_set_code: string | null;
+  booster_code: string | null;
   ev: number;
   sd: number;
   price: number;

@@ -500,6 +500,9 @@ struct EvRanking {
     category: Option<String>,
     subtype: Option<String>,
     release_date: Option<String>,
+    /// The booster this product opens into, for jumping to the simulator.
+    booster_set_code: Option<String>,
+    booster_code: Option<String>,
     ev: f64,
     sd: f64,
     price: f64,
@@ -524,6 +527,7 @@ async fn ev_rankings(
                     return None;
                 }
                 let set = catalog.sets.get(&product.set_code);
+                let booster = catalog.primary_booster(&product.uuid);
                 Some(EvRanking {
                     uuid: product.uuid.clone(),
                     name: product.name.clone(),
@@ -535,6 +539,8 @@ async fn ev_rankings(
                         .release_date
                         .clone()
                         .or_else(|| set.and_then(|s| s.release_date.clone())),
+                    booster_set_code: booster.as_ref().map(|b| b.set_code.clone()),
+                    booster_code: booster.as_ref().map(|b| b.code.clone()),
                     ev: moments.mean,
                     sd: moments.sd(),
                     price,

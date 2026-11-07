@@ -4,7 +4,7 @@ import { clear, h, mount, money, percent, verdict } from "../ui";
 interface Ctx {
   pricing: () => PricingOptions;
   onPricingChange: (cb: () => void) => void;
-  openSimulator: (set_code: string) => void;
+  openSimulator: (set_code: string, booster_code: string | null) => void;
 }
 
 type SortKey = "ratio" | "ev" | "price" | "sd" | "release_date" | "name";
@@ -154,7 +154,7 @@ export function rankingsView(ctx: Ctx): HTMLElement {
               h(
                 "td",
                 null,
-                h("button", { type: "button", class: "link product-link", onClick: () => ctx.openSimulator(r.set_code) }, r.name),
+                h("button", { type: "button", class: "link product-link", onClick: () => ctx.openSimulator(r.booster_set_code ?? r.set_code, r.booster_code) }, r.name),
                 h("span", { class: "muted small" }, `${r.set_name} · ${(r.subtype ?? r.category ?? "").replace(/_/g, " ")}`),
               ),
               h("td", null, r.release_date ?? "—"),

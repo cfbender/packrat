@@ -273,6 +273,20 @@ impl Catalog {
             .cloned()
     }
 
+    /// The booster a sealed product opens into: its first pack, or the first
+    /// pack of the first sealed product nested inside it (a box of packs).
+    pub fn primary_booster(&self, uuid: &str) -> Option<Arc<Booster>> {
+        let mut uuid = uuid;
+        for _ in 0..6 {
+            let product = self.products.get(uuid)?;
+            if let Some(pack) = product.contents.packs.first() {
+                return self.booster(&pack.set, &pack.code);
+            }
+            uuid = &product.contents.sealed.first()?.uuid;
+        }
+        None
+    }
+
     pub fn card_price(&self, vendor: Vendor, uuid: &str, foil: bool) -> Option<u32> {
         self.card_prices
             .get(&vendor)?
