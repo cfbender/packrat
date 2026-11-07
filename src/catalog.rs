@@ -39,7 +39,7 @@ impl Vendor {
 }
 
 /// Which vendor's prices to use and the floor below which a card counts
-/// as $0 (botbox's "exclude cards under $X"; bulk is rarely sellable).
+/// as $0 (bulk is rarely sellable).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Pricing {
     pub vendor: Vendor,

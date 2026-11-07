@@ -1,8 +1,7 @@
 # packrat
 
 Self-hosted Magic: The Gathering booster pack simulator with expected-value
-statistics for sealed product. A fast, offline-friendly take on
-[botbox.dev](https://botbox.dev): open packs, see what they're worth, and rank
+statistics for sealed product. Open packs, see what they're worth, and rank
 every sealed product by EV against its current price.
 
 - Rust (axum + SQLite) backend, vanilla TypeScript + Vite PWA frontend.
@@ -68,7 +67,7 @@ than the pick count). Sealed products are valued recursively from the packs
 they contain; products with decks or variable contents are skipped.
 
 **Simulated** statistics (median, min/max, break-even share, histogram) come
-from 1,000 simulated openings. The verdict tiers follow botbox's guide:
+from 1,000 simulated openings. Verdict tiers:
 positive EV ≥ 115% of price, near break-even 95–115%, fair 80–95%, poor
 60–80%, very poor below; "lottery ticket" when at most 15% of openings beat
 the price and the standard deviation is at least 0.75× the price.

@@ -8,7 +8,7 @@ export const VENDORS: { id: Vendor; label: string; short: string }[] = [
 
 export type Prices = Partial<Record<Vendor, number>>;
 
-/** Price floor in dollars; cards below it count as $0 (botbox's "exclude prices below"). */
+/** Price floor in dollars; cards below it count as $0 (bulk is rarely sellable). */
 export const FLOORS = [0, 0.25, 0.5, 1, 2, 5] as const;
 
 export interface PricingOptions {

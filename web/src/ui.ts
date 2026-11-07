@@ -81,7 +81,7 @@ export function relativeTime(stamp: string | null | undefined): string {
   return `${Math.round(hours / 24)} d ago`;
 }
 
-/** Botbox-style verdict tiers based on EV/price and break-even share. */
+/** Verdict tiers based on EV/price and break-even share. */
 export function verdict(
   ratio: number | null,
   breakEven: number | null,
