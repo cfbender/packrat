@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Prepares an Amp orb: Rust toolchain, web dependencies, and a release build.
+# The MTGJSON catalog and prices are downloaded by the server on first start
+# (see .amp/services.yaml), not here, so the snapshot stays small.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+step() { printf '\n==> %s (%s)\n' "$1" "$(date +%T)"; }
+
+step "Rust toolchain"
+if [ ! -x "$HOME/.cargo/bin/cargo" ]; then
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --no-modify-path
+fi
+# The installer cannot update this running script's environment.
+# shellcheck disable=SC1091
+. "$HOME/.cargo/env"
+if ! grep -Fq '.cargo/env' "$HOME/.bash_profile" 2>/dev/null; then
+  printf '\n# Rust toolchain (packrat)\n. "$HOME/.cargo/env"\n' >> "$HOME/.bash_profile"
+fi
+cargo --version
+
+step "Web dependencies"
+# Corepack in the orb's Node cannot run pnpm 12, so use an npm-installed pnpm.
+pnpm_ok() {
+  local bin
+  bin="$(command -v pnpm 2>/dev/null)" || return 1
+  ! readlink -f "$bin" | grep -q corepack
+}
+if ! pnpm_ok; then
+  corepack disable >/dev/null 2>&1 || true
+  npm install -g pnpm@12
+fi
+(cd web && pnpm install --frozen-lockfile)
+
+step "Web build"
+(cd web && pnpm run build)
+
+step "Server build"
+cargo build --release
+
+step "Done"

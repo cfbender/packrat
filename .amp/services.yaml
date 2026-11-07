@@ -1,0 +1,4 @@
+services:
+  packrat:
+    command: PACKRAT_DATA_DIR=data ./target/release/packrat serve
+    portal: true
