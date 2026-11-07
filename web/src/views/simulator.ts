@@ -35,6 +35,8 @@ export function simulatorView(ctx: Ctx): HTMLElement {
   let stats: StatsResponse | null = null;
   let statsRequest = 0;
   let packs: OpenedPack[] = [];
+  // Whether `packs` came from opening a whole box, which is priced as a box.
+  let openedBox = false;
   let opening = false;
 
   // Physical products with a sealed listing first; Arena-only boosters last.
@@ -49,6 +51,7 @@ export function simulatorView(ctx: Ctx): HTMLElement {
     selected = listing;
     prefs.selection = { set_code: listing.set_code, booster_code: listing.booster_code };
     packs = [];
+    openedBox = false;
     stats = null;
     renderPicker();
     renderActions();
@@ -76,6 +79,15 @@ export function simulatorView(ctx: Ctx): HTMLElement {
     return count >= 2 && count <= 36 ? count : null;
   }
 
+  // A box sells for less than its packs, so an opened box costs the sealed box
+  // price when a vendor lists one; everything else costs packs × pack price.
+  function openingCost(listing: BoosterListing, count: number, box: boolean, vendor: Vendor): number | null {
+    const boxPrice = listing.box?.prices[vendor];
+    if (box && boxPrice !== undefined) return boxPrice;
+    const packPrice = listing.pack?.prices[vendor];
+    return packPrice !== undefined ? packPrice * count : null;
+  }
+
   async function open(kind: "pack" | "box"): Promise<void> {
     if (!selected || opening) return;
     // Repeating a box opening on a product without a box falls back to one pack.
@@ -87,7 +99,8 @@ export function simulatorView(ctx: Ctx): HTMLElement {
     try {
       const result = await api.open(selected.set_code, selected.booster_code, count, ctx.pricing().floor);
       packs = result.packs;
-      record(selected, result.packs);
+      openedBox = box !== null;
+      record(selected, result.packs, openedBox);
       renderPacks();
       renderHistory();
     } catch (error) {
@@ -98,14 +111,14 @@ export function simulatorView(ctx: Ctx): HTMLElement {
     }
   }
 
-  function record(listing: BoosterListing, opened: OpenedPack[]): void {
+  function record(listing: BoosterListing, opened: OpenedPack[], box: boolean): void {
     const value: HistoryEntry["value"] = {};
     const cost: HistoryEntry["cost"] = {};
     for (const vendor of ["tcgplayer", "cardkingdom", "manapool"] as Vendor[]) {
       const total = opened.reduce((sum, p) => sum + (p.value[vendor] ?? 0), 0);
       if (opened.some((p) => p.value[vendor] !== undefined)) value[vendor] = total;
-      const price = listing.pack?.prices[vendor];
-      if (price !== undefined) cost[vendor] = price * opened.length;
+      const spent = openingCost(listing, opened.length, box, vendor);
+      if (spent !== null) cost[vendor] = spent;
     }
     const vendor = ctx.pricing().vendor;
     let best: HistoryEntry["best"] = { name: "", cents: null, foil: false };
@@ -303,9 +316,10 @@ export function simulatorView(ctx: Ctx): HTMLElement {
       return;
     }
     const vendor = ctx.pricing().vendor;
-    const price = selected.pack?.prices[vendor];
     const total = packs.reduce((sum, p) => sum + (p.value[vendor] ?? 0), 0);
-    const spent = price !== undefined ? price * packs.length : null;
+    const price = selected.pack?.prices[vendor];
+    const spent = openingCost(selected, packs.length, openedBox, vendor);
+    const asBox = openedBox && selected.box?.prices[vendor] !== undefined;
     const perPack = prefs.perPack;
     mount(packsEl,
       h(
@@ -317,7 +331,9 @@ export function simulatorView(ctx: Ctx): HTMLElement {
           h("strong", null, `${packs.length} pack${packs.length === 1 ? "" : "s"}`),
           " worth ",
           h("strong", null, cents(total)),
-          spent !== null ? [" for ", h("strong", null, cents(spent)), " ", delta(total, spent)] : null,
+          spent !== null
+            ? [" for ", h("strong", null, cents(spent)), asBox ? " as a box " : " ", delta(total, spent)]
+            : null,
         ),
         packs.length > 1
           ? h(
