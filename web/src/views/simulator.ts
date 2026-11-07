@@ -136,7 +136,6 @@ export function simulatorView(ctx: Ctx): HTMLElement {
     onKeydown: (event) => {
       if (event.key === "Escape") {
         search.value = "";
-        renderResults();
         search.blur();
       }
       if (event.key === "Enter") {
@@ -145,7 +144,20 @@ export function simulatorView(ctx: Ctx): HTMLElement {
       }
     },
   });
+  const clearButton = h(
+    "button",
+    { type: "button", class: "search-clear", title: "Clear search", hidden: true, ariaLabel: "Clear search" },
+    "×",
+  );
+  clearButton.addEventListener("click", () => {
+    search.value = "";
+    search.focus();
+    renderResults();
+  });
   const results = h("div", { class: "results", hidden: true });
+  // Clicking inside the dropdown must not blur the search box, or the
+  // dropdown would close before the click lands (focusout below).
+  results.addEventListener("mousedown", (event) => event.preventDefault());
   const arenaToggle = h(
     "label",
     { class: "results-option" },
@@ -168,6 +180,7 @@ export function simulatorView(ctx: Ctx): HTMLElement {
   function renderResults(): void {
     const query = search.value.trim().toLowerCase();
     const found = visible().filter((l) => matches(l, query)).slice(0, 60);
+    clearButton.hidden = query === "";
     results.hidden = false;
     clear(results);
     mount(results,
@@ -195,8 +208,9 @@ export function simulatorView(ctx: Ctx): HTMLElement {
   }
 
   search.addEventListener("focus", () => renderResults());
-  document.addEventListener("click", (event) => {
-    if (!pickerEl.contains(event.target as Node)) results.hidden = true;
+  pickerEl.addEventListener("focusout", (event) => {
+    const next = (event as FocusEvent).relatedTarget as Node | null;
+    if (!next || !pickerEl.contains(next)) results.hidden = true;
   });
 
   function renderPicker(): void {
@@ -216,7 +230,7 @@ export function simulatorView(ctx: Ctx): HTMLElement {
             ]
           : h("h2", null, "Pick a booster"),
       ),
-      search,
+      h("div", { class: "search-wrap" }, search, clearButton),
       results,
     );
   }
