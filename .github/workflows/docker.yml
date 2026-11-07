@@ -44,6 +44,33 @@ jobs:
             type=sha
             type=raw,value=latest,enable={{is_default_branch}}
 
+      # Static binaries are cross-compiled, so run each one once (arm64 under
+      # QEMU) before publishing to catch a broken link step or entrypoint.
+      - name: Build amd64 for smoke test
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: packrat-smoke:amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build arm64 for smoke test
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          load: true
+          tags: packrat-smoke:arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test
+        run: |
+          docker run --rm --platform linux/amd64 packrat-smoke:amd64 --help
+          docker run --rm --platform linux/arm64 packrat-smoke:arm64 --help
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:

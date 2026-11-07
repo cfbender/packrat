@@ -19,6 +19,11 @@ use clap::{Parser, Subcommand};
 use tower_http::compression::CompressionLayer;
 use tower_http::services::{ServeDir, ServeFile};
 
+// The release image is a static musl binary; musl's allocator is several
+// times slower than glibc's on the simulation's allocation-heavy hot paths.
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 use crate::api::{AppState, JobStatus};
 use crate::catalog::Catalog;
 use crate::config::Config;

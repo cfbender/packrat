@@ -27,6 +27,11 @@ docker compose up -d
 Then open <http://localhost:4100>. To build the image yourself instead,
 replace `image:` with `build: .` in `docker-compose.yml`.
 
+The image is a static binary on a distroless base with no shell or OS
+packages, and it runs as a non-root user (uid 65532). If you bind-mount a
+host directory instead of using the `packrat-data` volume, make it writable
+by that uid (`chown 65532 ./data`) or run with `user: root`.
+
 The first start downloads the MTGJSON database (~130 MB compressed) and
 current prices into the `packrat-data` volume; this takes a few minutes and
 only happens once. Prices refresh every
