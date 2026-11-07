@@ -16,7 +16,7 @@ RUN case "$TARGETARCH" in \
       amd64) echo x86_64-unknown-linux-gnu > /target-triple ;; \
       arm64) echo aarch64-unknown-linux-gnu > /target-triple \
              && apt-get update \
-             && apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu \
+             && apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu libc6-dev-arm64-cross \
              && rm -rf /var/lib/apt/lists/* ;; \
       *) echo "unsupported TARGETARCH: $TARGETARCH" >&2; exit 1 ;; \
     esac \
