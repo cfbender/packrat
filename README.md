@@ -17,13 +17,19 @@ every sealed product by EV against its current price.
 
 ### Docker
 
+Images are published to `ghcr.io/cfbender/packrat` on every push to `main`
+(`latest`, `main`, `sha-<commit>`) and for `v*` tags, for amd64 and arm64.
+
 ```sh
 docker compose up -d
 ```
 
-Then open <http://localhost:4100>. The first start downloads the MTGJSON
-database (~130 MB compressed) and current prices into the `packrat-data`
-volume; this takes a few minutes and only happens once. Prices refresh every
+Then open <http://localhost:4100>. To build the image yourself instead,
+replace `image:` with `build: .` in `docker-compose.yml`.
+
+The first start downloads the MTGJSON database (~130 MB compressed) and
+current prices into the `packrat-data` volume; this takes a few minutes and
+only happens once. Prices refresh every
 `PACKRAT_PRICE_REFRESH_HOURS` (default 12) while the server runs, and the
 catalog is re-imported when MTGJSON publishes a new build.
 
