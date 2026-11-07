@@ -5,6 +5,7 @@ const KEYS = {
   floor: "packrat.floor",
   selection: "packrat.selection",
   showArena: "packrat.showArena",
+  perPack: "packrat.perPack",
   history: "packrat.history",
 } as const;
 
@@ -62,6 +63,13 @@ export const prefs = {
   },
   set showArena(value: boolean) {
     write(KEYS.showArena, value);
+  },
+  /** Show opened cards grouped by pack instead of one combined grid. */
+  get perPack(): boolean {
+    return read<boolean>(KEYS.perPack, false);
+  },
+  set perPack(value: boolean) {
+    write(KEYS.perPack, value);
   },
   get selection(): Selection | null {
     return read<Selection | null>(KEYS.selection, null);

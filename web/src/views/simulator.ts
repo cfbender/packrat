@@ -220,18 +220,18 @@ export function simulatorView(ctx: Ctx): HTMLElement {
     const vendor = ctx.pricing().vendor;
     const price = selected.pack?.prices[vendor];
     const boxCount = selected.box?.count ?? 0;
+    // `R` repeats the last opening, so the key hint sits on whichever button was used last.
     const button = (label: string, count: number, hint?: string) =>
       h(
         "button",
         { type: "button", class: "open-button", disabled: opening, onClick: () => void open(count) },
         label,
         hint ? h("small", null, hint) : null,
+        count === lastCount ? h("kbd", { class: "key-hint", title: "Press R to repeat" }, "R") : null,
       );
-    mount(actionsEl, 
-      button("Open 1", 1, "R"),
-      button("Open 3", 3),
-      button("Open 6", 6),
-      boxCount >= 2 && boxCount <= 36 ? button(`Open box`, boxCount, `${boxCount} packs`) : null,
+    mount(actionsEl,
+      button("Open 1", 1),
+      boxCount >= 2 && boxCount <= 36 ? button("Open box", boxCount, `${boxCount} packs`) : null,
       h(
         "span",
         { class: "pack-price" },
@@ -283,20 +283,46 @@ export function simulatorView(ctx: Ctx): HTMLElement {
     const price = selected.pack?.prices[vendor];
     const total = packs.reduce((sum, p) => sum + (p.value[vendor] ?? 0), 0);
     const spent = price !== undefined ? price * packs.length : null;
-    mount(packsEl, 
+    const perPack = prefs.perPack;
+    mount(packsEl,
       h(
         "div",
         { class: "packs-summary" },
-        h("strong", null, `${packs.length} pack${packs.length === 1 ? "" : "s"}`),
-        " worth ",
-        h("strong", null, cents(total)),
-        spent !== null ? [" for ", h("strong", null, cents(spent)), " ", delta(total, spent)] : null,
+        h(
+          "span",
+          null,
+          h("strong", null, `${packs.length} pack${packs.length === 1 ? "" : "s"}`),
+          " worth ",
+          h("strong", null, cents(total)),
+          spent !== null ? [" for ", h("strong", null, cents(spent)), " ", delta(total, spent)] : null,
+        ),
+        packs.length > 1
+          ? h(
+              "label",
+              { class: "packs-option" },
+              h("input", {
+                type: "checkbox",
+                checked: perPack,
+                onChange: (event) => {
+                  prefs.perPack = (event.target as HTMLInputElement).checked;
+                  renderPacks();
+                },
+              }),
+              "Show per pack",
+            )
+          : null,
       ),
     );
+    const byPrice = (a: OpenedCard, b: OpenedCard) => (b.prices[vendor] ?? 0) - (a.prices[vendor] ?? 0);
+    if (!perPack) {
+      const cards = packs.flatMap((p) => p.cards).sort(byPrice);
+      mount(packsEl, h("article", { class: "pack" }, h("div", { class: "card-grid" }, ...cards.map((card) => cardEl(card, vendor)))));
+      return;
+    }
     packs.forEach((pack, index) => {
       const value = pack.value[vendor];
-      const sorted = [...pack.cards].sort((a, b) => (b.prices[vendor] ?? 0) - (a.prices[vendor] ?? 0));
-      mount(packsEl, 
+      const sorted = [...pack.cards].sort(byPrice);
+      mount(packsEl,
         h(
           "article",
           { class: "pack" },
