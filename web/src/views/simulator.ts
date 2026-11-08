@@ -92,14 +92,21 @@ export function simulatorView(ctx: Ctx): HTMLElement {
   // "30 packs + Box Topper": the main packs, then any bundled extras named
   // without the set name and trailing "Pack".
   function openedLabel(listing: BoosterListing, opened: OpenedPack[]): string {
-    const main = opened.filter((p) => p.booster_code === listing.booster_code).length;
+    const main = mainPacks(listing, opened);
+    return [`${main} pack${main === 1 ? "" : "s"}`, ...extrasLabels(listing, opened)].join(" + ");
+  }
+
+  function mainPacks(listing: BoosterListing, opened: OpenedPack[]): number {
+    return opened.filter((p) => p.booster_code === listing.booster_code).length;
+  }
+
+  // ["Box Topper"] or ["2× Promo"]: the packs opened alongside the main ones.
+  function extrasLabels(listing: BoosterListing, opened: OpenedPack[]): string[] {
     const extras = new Map<string, number>();
     for (const p of opened) {
       if (p.booster_code !== listing.booster_code) extras.set(p.name, (extras.get(p.name) ?? 0) + 1);
     }
-    const parts = [`${main} pack${main === 1 ? "" : "s"}`];
-    for (const [name, n] of extras) parts.push(`${n > 1 ? `${n}× ` : ""}${shortPackName(name, listing.set_name)}`);
-    return parts.join(" + ");
+    return [...extras].map(([name, n]) => `${n > 1 ? `${n}× ` : ""}${shortPackName(name, listing.set_name)}`);
   }
 
   function shortPackName(name: string, setName: string): string {
@@ -156,7 +163,8 @@ export function simulatorView(ctx: Ctx): HTMLElement {
       set_code: listing.set_code,
       booster_code: listing.booster_code,
       name: listing.name,
-      packs: opened.length,
+      packs: mainPacks(listing, opened),
+      extras: extrasLabels(listing, opened),
       value,
       cost,
       best,
@@ -602,7 +610,7 @@ export function simulatorView(ctx: Ctx): HTMLElement {
           h(
             "li",
             null,
-            h("span", { class: "history-name" }, `${e.packs}× ${e.name}`),
+            h("span", { class: "history-name" }, [`${e.packs}× ${e.name}`, ...(e.extras ?? [])].join(" + ")),
             h("span", { class: "history-best" }, e.best.name ? `best: ${e.best.name}${e.best.foil ? " (foil)" : ""}` : ""),
             h(
               "span",

@@ -19,7 +19,9 @@ export interface HistoryEntry {
   set_code: string;
   booster_code: string;
   name: string;
+  /** Main packs opened; `extras` lists anything bundled with them, e.g. "Box Topper". */
   packs: number;
+  extras?: string[];
   /** Total pack value in cents at the time, per vendor. */
   value: Partial<Record<Vendor, number>>;
   /** Sealed pack price in cents at the time, per vendor. */
