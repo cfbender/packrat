@@ -346,6 +346,30 @@ impl Catalog {
         Some((product, product.contents.box_packs()?.count))
     }
 
+    /// Everything a box opens into, as (booster, pack product name, packs):
+    /// the main packs first, then any bundled extras such as a box topper.
+    /// Sealed entries that are not a single booster pack are skipped.
+    pub fn box_contents(&self, box_uuid: &str) -> Vec<(Arc<Booster>, String, u32)> {
+        let Some(product) = self.products.get(box_uuid) else {
+            return Vec::new();
+        };
+        let main = product.contents.box_packs().map(|s| s.uuid.as_str());
+        let mut entries: Vec<&SealedRef> = product.contents.sealed.iter().collect();
+        entries.sort_by_key(|s| Some(s.uuid.as_str()) != main);
+        entries
+            .into_iter()
+            .filter_map(|entry| {
+                let pack = self.products.get(&entry.uuid)?;
+                let c = &pack.contents;
+                if c.packs.len() != 1 || !c.sealed.is_empty() || !c.cards.is_empty() {
+                    return None;
+                }
+                let booster = self.booster(&c.packs[0].set, &c.packs[0].code)?;
+                Some((booster, pack.name.clone(), entry.count))
+            })
+            .collect()
+    }
+
     /// Builds the booster -> pack product and pack -> box product indexes.
     fn index_products(&mut self) {
         let mut pack_candidates: HashMap<(String, String), Vec<&Product>> = HashMap::new();

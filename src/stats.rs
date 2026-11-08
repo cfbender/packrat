@@ -22,14 +22,14 @@ impl Moments {
         self.variance.max(0.0).sqrt()
     }
 
-    fn scaled(self, count: f64) -> Self {
+    pub fn scaled(self, count: f64) -> Self {
         Moments {
             mean: self.mean * count,
             variance: self.variance * count,
         }
     }
 
-    fn plus(self, other: Self) -> Self {
+    pub fn plus(self, other: Self) -> Self {
         Moments {
             mean: self.mean + other.mean,
             variance: self.variance + other.variance,

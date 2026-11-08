@@ -210,6 +210,10 @@ struct OpenRequest {
     booster_code: String,
     #[serde(default = "one")]
     count: u32,
+    /// Open this booster's whole box instead of `count` packs: every pack in
+    /// it, including any bundled box topper.
+    #[serde(default, rename = "box")]
+    whole_box: bool,
     /// Cards priced below this many dollars count as $0 in pack values.
     #[serde(default)]
     floor: f64,
@@ -239,6 +243,9 @@ struct OpenedCard {
 
 #[derive(Serialize)]
 struct OpenedPack {
+    booster_code: String,
+    /// The pack product's name, e.g. "Aetherdrift Box Topper Pack".
+    name: String,
     cards: Vec<OpenedCard>,
     value: HashMap<Vendor, u32>,
 }
@@ -302,19 +309,43 @@ async fn open(
     let booster = catalog
         .booster(&request.set_code, &request.booster_code)
         .ok_or_else(|| not_found("Unknown booster"))?;
-    let count = request.count.clamp(1, 36);
-    let pulls: Vec<Vec<PulledCard>> = {
+    // (booster, pack name, how many of it) to open, main packs first.
+    let to_open: Vec<(Arc<Booster>, String, u32)> = request
+        .whole_box
+        .then(|| {
+            let pack = catalog.pack_product(&booster.set_code, &booster.code)?;
+            let (box_product, _) = catalog.box_product(&pack.uuid)?;
+            Some(catalog.box_contents(&box_product.uuid))
+        })
+        .flatten()
+        .filter(|contents| !contents.is_empty())
+        .unwrap_or_else(|| {
+            let name = catalog
+                .pack_product(&booster.set_code, &booster.code)
+                .map_or_else(|| booster.code.clone(), |p| p.name.clone());
+            vec![(booster.clone(), name, request.count.clamp(1, 36))]
+        });
+    let pulls: Vec<(&Arc<Booster>, &str, Vec<PulledCard>)> = {
         let mut rng = rand::rng();
-        (0..count).map(|_| open_pack(&booster, &mut rng)).collect()
+        let mut pulls = Vec::new();
+        for (booster, name, count) in &to_open {
+            for _ in 0..*count {
+                pulls.push((booster, name.as_str(), open_pack(booster, &mut rng)));
+            }
+        }
+        pulls
     };
-    let mut uuids: Vec<&str> = pulls.iter().flatten().map(|c| c.uuid.as_ref()).collect();
+    let mut uuids: Vec<&str> = pulls
+        .iter()
+        .flat_map(|(_, _, cards)| cards.iter().map(|c| c.uuid.as_ref()))
+        .collect();
     uuids.sort_unstable();
     uuids.dedup();
     let details = card_details(&state.pool, &uuids).await?;
 
     let packs = pulls
         .iter()
-        .map(|pack| {
+        .map(|(booster, name, pack)| {
             let cards: Vec<OpenedCard> = pack
                 .iter()
                 .map(|pulled| {
@@ -350,7 +381,12 @@ async fn open(
                     value.insert(vendor, total);
                 }
             }
-            OpenedPack { cards, value }
+            OpenedPack {
+                booster_code: booster.code.clone(),
+                name: (*name).to_owned(),
+                cards,
+                value,
+            }
         })
         .collect();
 
@@ -380,10 +416,18 @@ struct TheoreticalStats {
 }
 
 #[derive(Serialize)]
+struct BoxExtra {
+    name: String,
+    count: u32,
+}
+
+#[derive(Serialize)]
 struct BoxStats {
     uuid: String,
     name: String,
     count: u32,
+    /// Packs bundled with the main ones, such as a box topper.
+    extras: Vec<BoxExtra>,
     price: Option<f64>,
     ev: f64,
     sd: f64,
@@ -438,24 +482,32 @@ async fn pack_stats(
             let price = catalog
                 .sealed_price(vendor, &uuid)
                 .map(|c| c as f64 / 100.0);
+            // Main packs plus any bundled extras, e.g. a box topper.
+            let contents = catalog.box_contents(&uuid);
+            let extras = contents
+                .iter()
+                .skip(1)
+                .map(|(_, name, count)| BoxExtra { name: name.clone(), count: *count })
+                .collect();
             let boxes = (samples / 4).clamp(100, 1000);
             let mut values: Vec<f64> = (0..boxes)
                 .map(|_| {
-                    (0..count)
-                        .map(|_| {
-                            stats::pack_value(&open_pack(&booster, &mut rng), &catalog, pricing)
-                        })
+                    contents
+                        .iter()
+                        .flat_map(|(b, _, n)| (0..*n).map(move |_| b))
+                        .map(|b| stats::pack_value(&open_pack(b, &mut rng), &catalog, pricing))
                         .sum()
                 })
                 .collect();
-            let moments = stats::Moments {
-                mean: theoretical.moments.mean * count as f64,
-                variance: theoretical.moments.variance * count as f64,
-            };
+            let moments = contents
+                .iter()
+                .map(|(b, _, n)| stats::theoretical(b, &catalog, pricing).moments.scaled(*n as f64))
+                .fold(stats::Moments::default(), |acc, m| acc.plus(m));
             BoxStats {
                 uuid,
                 name,
                 count,
+                extras,
                 price,
                 ev: moments.mean,
                 sd: moments.sd(),
@@ -520,6 +572,9 @@ async fn ev_rankings(
         let mut rankings: Vec<EvRanking> = catalog
             .products
             .values()
+            // Secret Lair drops are fixed card lists, not a gamble; keep them
+            // out of a ranking of what to crack.
+            .filter(|product| product.set_code != "SLD")
             .filter_map(|product| {
                 let price = catalog.sealed_price(vendor, &product.uuid)? as f64 / 100.0;
                 let moments = stats::product_moments(&catalog, &product.uuid, pricing, 0)?;

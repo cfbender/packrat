@@ -81,23 +81,48 @@ export function simulatorView(ctx: Ctx): HTMLElement {
 
   // A box sells for less than its packs, so an opened box costs the sealed box
   // price when a vendor lists one; everything else costs packs × pack price.
-  function openingCost(listing: BoosterListing, count: number, box: boolean, vendor: Vendor): number | null {
+  function openingCost(listing: BoosterListing, opened: OpenedPack[], box: boolean, vendor: Vendor): number | null {
     const boxPrice = listing.box?.prices[vendor];
     if (box && boxPrice !== undefined) return boxPrice;
     const packPrice = listing.pack?.prices[vendor];
-    return packPrice !== undefined ? packPrice * count : null;
+    const mainPacks = opened.filter((p) => p.booster_code === listing.booster_code).length;
+    return packPrice !== undefined ? packPrice * mainPacks : null;
+  }
+
+  // "30 packs + Box Topper": the main packs, then any bundled extras named
+  // without the set name and trailing "Pack".
+  function openedLabel(listing: BoosterListing, opened: OpenedPack[]): string {
+    const main = opened.filter((p) => p.booster_code === listing.booster_code).length;
+    const extras = new Map<string, number>();
+    for (const p of opened) {
+      if (p.booster_code !== listing.booster_code) extras.set(p.name, (extras.get(p.name) ?? 0) + 1);
+    }
+    const parts = [`${main} pack${main === 1 ? "" : "s"}`];
+    for (const [name, n] of extras) parts.push(`${n > 1 ? `${n}× ` : ""}${shortPackName(name, listing.set_name)}`);
+    return parts.join(" + ");
+  }
+
+  function shortPackName(name: string, setName: string): string {
+    return name
+      .replace(new RegExp(`^${setName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*`, "i"), "")
+      .replace(/\s*Pack$/i, "")
+      .trim() || name;
   }
 
   async function open(kind: "pack" | "box"): Promise<void> {
     if (!selected || opening) return;
     // Repeating a box opening on a product without a box falls back to one pack.
     const box = kind === "box" ? boxCount(selected) : null;
-    const count = box ?? 1;
     opening = true;
     lastOpening = box !== null ? "box" : "pack";
     renderActions();
     try {
-      const result = await api.open(selected.set_code, selected.booster_code, count, ctx.pricing().floor);
+      const result = await api.open(
+        selected.set_code,
+        selected.booster_code,
+        box !== null ? { box: true } : { count: 1 },
+        ctx.pricing().floor,
+      );
       packs = result.packs;
       openedBox = box !== null;
       record(selected, result.packs, openedBox);
@@ -117,7 +142,7 @@ export function simulatorView(ctx: Ctx): HTMLElement {
     for (const vendor of ["tcgplayer", "cardkingdom", "manapool"] as Vendor[]) {
       const total = opened.reduce((sum, p) => sum + (p.value[vendor] ?? 0), 0);
       if (opened.some((p) => p.value[vendor] !== undefined)) value[vendor] = total;
-      const spent = openingCost(listing, opened.length, box, vendor);
+      const spent = openingCost(listing, opened, box, vendor);
       if (spent !== null) cost[vendor] = spent;
     }
     const vendor = ctx.pricing().vendor;
@@ -318,7 +343,7 @@ export function simulatorView(ctx: Ctx): HTMLElement {
     const vendor = ctx.pricing().vendor;
     const total = packs.reduce((sum, p) => sum + (p.value[vendor] ?? 0), 0);
     const price = selected.pack?.prices[vendor];
-    const spent = openingCost(selected, packs.length, openedBox, vendor);
+    const spent = openingCost(selected, packs, openedBox, vendor);
     const asBox = openedBox && selected.box?.prices[vendor] !== undefined;
     const perPack = prefs.perPack;
     mount(packsEl,
@@ -328,7 +353,7 @@ export function simulatorView(ctx: Ctx): HTMLElement {
         h(
           "span",
           { class: "packs-totals" },
-          h("strong", null, `${packs.length} pack${packs.length === 1 ? "" : "s"}`),
+          h("strong", null, openedLabel(selected, packs)),
           h("strong", { title: "Value of the cards opened" }, cents(total)),
           spent !== null
             ? [
@@ -364,9 +389,11 @@ export function simulatorView(ctx: Ctx): HTMLElement {
       mount(packsEl, h("article", { class: "pack" }, h("div", { class: "card-grid" }, ...cards.map((card) => cardEl(card, vendor)))));
       return;
     }
+    const listing = selected;
     packs.forEach((pack, index) => {
       const value = pack.value[vendor];
       const sorted = [...pack.cards].sort(byPrice);
+      const extra = pack.booster_code !== listing.booster_code;
       mount(packsEl,
         h(
           "article",
@@ -374,12 +401,13 @@ export function simulatorView(ctx: Ctx): HTMLElement {
           h(
             "header",
             null,
-            h("h3", null, `Pack ${index + 1}`),
+            h("h3", null, extra ? shortPackName(pack.name, listing.set_name) : `Pack ${index + 1}`),
             h(
               "span",
               { class: "pack-value" },
               value !== undefined ? cents(value) : "—",
-              price !== undefined && value !== undefined ? delta(value, price) : null,
+              // Extras have no price of their own; only main packs get a delta.
+              !extra && price !== undefined && value !== undefined ? delta(value, price) : null,
             ),
           ),
           h("div", { class: "card-grid" }, ...sorted.map((card) => cardEl(card, vendor))),
@@ -526,7 +554,11 @@ export function simulatorView(ctx: Ctx): HTMLElement {
           h(
             "dl",
             { class: "stat-grid" },
-            statRow("Expected value", money(b.ev), `${b.count} packs`),
+            statRow(
+              "Expected value",
+              money(b.ev),
+              [`${b.count} packs`, ...b.extras.map((e) => `${e.count > 1 ? `${e.count}× ` : ""}${shortPackName(e.name, selected?.set_name ?? "")}`)].join(" + "),
+            ),
             statRow("Box price", money(b.price)),
             statRow("Std. deviation", money(b.sd)),
             statRow("Break-even", percent(b.simulated.break_even), `${b.simulated.samples} simulated boxes`),

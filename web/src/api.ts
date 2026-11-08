@@ -61,6 +61,9 @@ export interface OpenedCard {
 }
 
 export interface OpenedPack {
+  booster_code: string;
+  /** The pack product's name, e.g. "Aetherdrift Box Topper Pack". */
+  name: string;
   cards: OpenedCard[];
   value: Prices;
 }
@@ -108,6 +111,8 @@ export interface StatsResponse {
     uuid: string;
     name: string;
     count: number;
+    /** Packs bundled with the main ones, such as a box topper. */
+    extras: { name: string; count: number }[];
     price: number | null;
     ev: number;
     sd: number;
@@ -153,10 +158,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   status: () => request<Status>("/api/status"),
   products: () => request<BoosterListing[]>("/api/products"),
-  open: (set_code: string, booster_code: string, count: number, floor: number) =>
+  /** Opens `count` packs, or the booster's whole box (including any box topper) when `box` is set. */
+  open: (set_code: string, booster_code: string, opening: { count: number } | { box: true }, floor: number) =>
     request<OpenResponse>("/api/open", {
       method: "POST",
-      body: JSON.stringify({ set_code, booster_code, count, floor }),
+      body: JSON.stringify({ set_code, booster_code, ...opening, floor }),
     }),
   stats: (set_code: string, booster_code: string, pricing: PricingOptions, samples = 1000) =>
     request<StatsResponse>(
