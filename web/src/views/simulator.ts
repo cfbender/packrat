@@ -327,12 +327,18 @@ export function simulatorView(ctx: Ctx): HTMLElement {
         { class: "packs-summary" },
         h(
           "span",
-          null,
+          { class: "packs-totals" },
           h("strong", null, `${packs.length} pack${packs.length === 1 ? "" : "s"}`),
-          " worth ",
-          h("strong", null, cents(total)),
+          h("strong", { title: "Value of the cards opened" }, cents(total)),
           spent !== null
-            ? [" for ", h("strong", null, cents(spent)), asBox ? " as a box " : " ", delta(total, spent)]
+            ? [
+                h(
+                  "span",
+                  { class: "muted", title: asBox ? "Box price" : "Pack price × packs" },
+                  `/ ${cents(spent)}${asBox ? " box" : ""}`,
+                ),
+                delta(total, spent),
+              ]
             : null,
         ),
         packs.length > 1

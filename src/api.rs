@@ -200,7 +200,7 @@ fn listing(catalog: &Catalog, booster: &Booster) -> BoosterListing {
         ),
         card_count: booster.card_count(),
         pack: pack.map(|p| product_summary(catalog, p, 1)),
-        box_product: box_product.map(|b| product_summary(catalog, b, b.contents.sealed[0].count)),
+        box_product: box_product.map(|(b, count)| product_summary(catalog, b, count)),
     }
 }
 
@@ -428,7 +428,7 @@ async fn pack_stats(
         .map(|c| c as f64 / 100.0);
     let box_product = pack
         .and_then(|p| catalog.box_product(&p.uuid))
-        .map(|b| (b.uuid.clone(), b.name.clone(), b.contents.sealed[0].count));
+        .map(|(b, count)| (b.uuid.clone(), b.name.clone(), count));
 
     let response = tokio::task::spawn_blocking(move || {
         let theoretical = stats::theoretical(&booster, &catalog, pricing);

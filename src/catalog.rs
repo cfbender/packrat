@@ -227,6 +227,12 @@ impl Contents {
     pub fn is_empty(&self) -> bool {
         self.packs.is_empty() && self.sealed.is_empty() && self.cards.is_empty()
     }
+
+    /// The packs a booster box is made of: its most numerous sealed entry.
+    /// Many boxes also bundle a single box-topper pack, which this skips.
+    pub fn box_packs(&self) -> Option<&SealedRef> {
+        self.sealed.iter().max_by_key(|s| s.count).filter(|s| s.count >= 2)
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -274,7 +280,8 @@ impl Catalog {
     }
 
     /// The booster a sealed product opens into: its first pack, or the first
-    /// pack of the first sealed product nested inside it (a box of packs).
+    /// pack of the most numerous sealed product nested inside it (a box of
+    /// packs, skipping a bundled box topper).
     pub fn primary_booster(&self, uuid: &str) -> Option<Arc<Booster>> {
         let mut uuid = uuid;
         for _ in 0..6 {
@@ -282,7 +289,7 @@ impl Catalog {
             if let Some(pack) = product.contents.packs.first() {
                 return self.booster(&pack.set, &pack.code);
             }
-            uuid = &product.contents.sealed.first()?.uuid;
+            uuid = &product.contents.sealed.iter().max_by_key(|s| s.count)?.uuid;
         }
         None
     }
@@ -331,10 +338,12 @@ impl Catalog {
         self.products.get(uuid)
     }
 
-    /// The box whose contents are N copies of this pack product.
-    pub fn box_product(&self, pack_uuid: &str) -> Option<&Product> {
+    /// The box made of N copies of this pack product (plus, sometimes, a box
+    /// topper), with how many packs it holds.
+    pub fn box_product(&self, pack_uuid: &str) -> Option<(&Product, u32)> {
         let uuid = self.box_by_pack.get(pack_uuid)?;
-        self.products.get(uuid)
+        let product = self.products.get(uuid)?;
+        Some((product, product.contents.box_packs()?.count))
     }
 
     /// Builds the booster -> pack product and pack -> box product indexes.
@@ -349,15 +358,12 @@ impl Catalog {
                     .or_default()
                     .push(p);
             }
-            if c.sealed.len() == 1
-                && c.packs.is_empty()
+            if c.packs.is_empty()
                 && c.cards.is_empty()
                 && p.category.as_deref() == Some("booster_box")
+                && let Some(packs) = c.box_packs()
             {
-                box_candidates
-                    .entry(c.sealed[0].uuid.clone())
-                    .or_default()
-                    .push(p);
+                box_candidates.entry(packs.uuid.clone()).or_default().push(p);
             }
         }
         let pack_by_booster: HashMap<(String, String), String> = pack_candidates
@@ -374,7 +380,7 @@ impl Catalog {
             .filter_map(|(key, candidates)| {
                 candidates
                     .into_iter()
-                    .max_by_key(|p| p.contents.sealed[0].count)
+                    .max_by_key(|p| p.contents.box_packs().map_or(0, |s| s.count))
                     .map(|p| (key, p.uuid.clone()))
             })
             .collect();

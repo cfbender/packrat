@@ -559,6 +559,17 @@ main {
   font-size: 1.05rem;
 }
 
+.packs-totals {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.6rem;
+}
+
+.packs-totals > * {
+  white-space: nowrap;
+}
+
 .packs-option {
   display: inline-flex;
   align-items: center;
